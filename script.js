@@ -83,32 +83,29 @@
   });
 
   /* ---------- Typewriter reveal for headings ----------
-     Hero heading types on load (it's already in view). Every other
-     section heading types the first time it scrolls into view. Each
-     heading only ever plays once per page load. */
+     The hero comment line types first, then the hero heading, then the
+     buttons/stats cascade in once that's done. Every other section
+     heading types the first time it scrolls into view. Each element
+     only ever plays its animation once per page load. */
 
   safe("heading typewriter", function () {
-    var headingEls = [];
-    var hero = document.getElementById("heroTitle");
-    if (hero) headingEls.push(hero);
-    document.querySelectorAll(".section-title").forEach(function (h) { headingEls.push(h); });
-
-    if (!headingEls.length) return;
-
-    headingEls.forEach(function (el) {
-      el.dataset.fullText = el.textContent;
-    });
-
-    console.log("[portfolio] typewriter targets found:", headingEls.length);
-
-    // This effect always plays, even for visitors with reduce-motion
-    // enabled, by request. Everything else on the site (scroll fades,
-    // card tilt, etc) still respects that preference.
-    headingEls.forEach(function (el) { el.textContent = ""; });
-
+    var heroCommentEl = document.querySelector(".hero-comment");
+    var heroTitleEl = document.getElementById("heroTitle");
+    var sectionHeadings = Array.prototype.slice.call(document.querySelectorAll(".section-title"));
     var heroSubEl = document.querySelector(".hero-sub");
     var heroActionsEl = document.querySelector(".hero-actions");
     var heroFactsEl = document.querySelector(".hero-facts");
+
+    // Clear every target up front (synchronously) so nothing flashes its
+    // full text before its turn to type comes up.
+    if (heroTitleEl) {
+      heroTitleEl.dataset.fullText = heroTitleEl.textContent;
+      heroTitleEl.textContent = "";
+    }
+    sectionHeadings.forEach(function (el) {
+      el.dataset.fullText = el.textContent;
+      el.textContent = "";
+    });
 
     function scheduleHeroFollowUps(typingDurationMs) {
       var base = (typingDurationMs + 200) / 1000;
@@ -117,9 +114,13 @@
       if (heroFactsEl) heroFactsEl.style.animationDelay = (base + 0.32).toFixed(2) + "s";
     }
 
-    function typeHeading(el) {
-      var text = el.dataset.fullText || "";
-      var speed = el.id === "heroTitle" ? 55 : 40;
+    // For headings: a small inline cursor span is inserted and removed
+    // once typing finishes.
+    function typeHeading(el, speed, onDone) {
+      var text = el.dataset.fullText || el.textContent;
+      el.dataset.fullText = text;
+      el.textContent = "";
+
       var cursor = document.createElement("span");
       cursor.className = "type-cursor";
       el.appendChild(cursor);
@@ -131,31 +132,73 @@
           i++;
           setTimeout(step, speed);
         } else {
-          if (el.id === "heroTitle") scheduleHeroFollowUps(text.length * speed);
           setTimeout(function () {
             if (cursor.parentNode) cursor.parentNode.removeChild(cursor);
           }, 450);
+          if (onDone) onDone(text.length * speed);
         }
       }
       step();
     }
 
-    if ("IntersectionObserver" in window) {
-      var headingObserver = new IntersectionObserver(
-        function (entries, obs) {
-          entries.forEach(function (entry) {
-            if (entry.isIntersecting) {
-              typeHeading(entry.target);
-              obs.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.4 }
-      );
-      headingEls.forEach(function (el) { headingObserver.observe(el); });
-    } else {
-      headingEls.forEach(function (el) { el.textContent = el.dataset.fullText; });
+    // For the comment line: it already has a CSS blinking cursor (::after)
+    // that naturally tracks the end of the text as it grows, so no extra
+    // cursor element is needed here.
+    function typeComment(el, speed, onDone) {
+      var text = el.dataset.fullText || el.textContent;
+      el.dataset.fullText = text;
+      el.textContent = "";
+
+      var i = 0;
+      function step() {
+        if (i < text.length) {
+          el.textContent += text.charAt(i);
+          i++;
+          setTimeout(step, speed);
+        } else if (onDone) {
+          onDone();
+        }
+      }
+      step();
     }
+
+    // Hero sequence: comment, then heading, then the rest cascades in.
+    if (heroCommentEl && heroTitleEl) {
+      typeComment(heroCommentEl, 30, function () {
+        typeHeading(heroTitleEl, 55, scheduleHeroFollowUps);
+      });
+    } else if (heroTitleEl) {
+      typeHeading(heroTitleEl, 55, scheduleHeroFollowUps);
+    } else if (heroCommentEl) {
+      typeComment(heroCommentEl, 30);
+    }
+
+    // Every other section heading types once, the first time it scrolls
+    // into view.
+    if (sectionHeadings.length) {
+      if ("IntersectionObserver" in window) {
+        var headingObserver = new IntersectionObserver(
+          function (entries, obs) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                typeHeading(entry.target, 40);
+                obs.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.4 }
+        );
+        sectionHeadings.forEach(function (el) { headingObserver.observe(el); });
+      } else {
+        sectionHeadings.forEach(function (el) { el.textContent = el.dataset.fullText || el.textContent; });
+      }
+    }
+
+    console.log(
+      "[portfolio] typewriter set up — comment:", !!heroCommentEl,
+      "hero:", !!heroTitleEl,
+      "section headings:", sectionHeadings.length
+    );
   });
 
   /* ---------- Scroll-spy navigation ---------- */
@@ -275,6 +318,15 @@
           iframe.allowFullscreen = true;
           frame.innerHTML = "";
           frame.appendChild(iframe);
+        } else if (item.type === "medal" && item.src) {
+          var medalIframe = document.createElement("iframe");
+          medalIframe.src = item.src;
+          medalIframe.title = item.title || "Project clip";
+          medalIframe.allow = "autoplay; fullscreen";
+          medalIframe.allowFullscreen = true;
+          medalIframe.style.border = "0";
+          frame.innerHTML = "";
+          frame.appendChild(medalIframe);
         } else if (item.type === "file" && item.src) {
           var video = document.createElement("video");
           video.src = item.src;

@@ -27,6 +27,11 @@ Open `videos-data.js`. Each project is one object in the `VIDEOS` array:
 ```
 
 - `type: "youtube"` — set `src` to the video ID (the part after `v=` in a YouTube URL)
+- `type: "medal"` — set `src` to a Medal.tv **embed** link, not the regular
+  "Copy Link" one. Take your normal Medal clip link and change "clips" to
+  singular "clip", then drop anything after the clip ID (like `?invite=...`).
+  For example `https://medal.tv/games/roblox/clips/AbC123?invite=xyz` becomes
+  `https://medal.tv/games/roblox/clip/AbC123`.
 - `type: "file"` — set `src` to a path to an `.mp4` file you upload alongside the site,
   e.g. `"videos/inventory-demo.mp4"`
 
